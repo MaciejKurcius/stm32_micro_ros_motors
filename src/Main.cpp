@@ -9,15 +9,19 @@
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 #include <std_msgs/msg/string.h>
+#include "motors.h"
+#include "hardware_cfg.h"
 
-#include "EncMotors.h"
+/* DEFINES */
+
+//temp for tests
+#define motor_vel 50
 
 #define CLIENT_IP "192.168.1.177"
 #define AGENT_IP "192.168.1.176"
 #define AGENT_PORT 8888
 #define NODE_NAME "stm32_node"
 
-#define LED_PIN PE3
 
 #define RCCHECK(fn)                \
   {                                \
@@ -34,6 +38,8 @@
     }                              \
   }
 
+/* VARIABLES */
+
 rcl_publisher_t publisher;
 rcl_subscription_t subscriber;
 std_msgs__msg__String msg;
@@ -47,15 +53,28 @@ IPAddress client_ip;
 IPAddress agent_ip;
 byte mac[] = {0x02, 0x47, 0x00, 0x00, 0x00, 0x01};
 
+MotorClass Motor1(M1_PWM_PIN, M1_PWM_TIM, M1_PWM_TIM_CH, M1_ILIM, M1A_IN, M1B_IN, M1_ENC_TIM, M1_ENC_A, M1_ENC_B, M1_DEFAULT_DIR);
+MotorClass Motor2(M2_PWM_PIN, M2_PWM_TIM, M2_PWM_TIM_CH, M2_ILIM, M2A_IN, M2B_IN, M2_ENC_TIM, M2_ENC_A, M2_ENC_B, M2_DEFAULT_DIR);
+MotorClass Motor3(M3_PWM_PIN, M3_PWM_TIM, M3_PWM_TIM_CH, M3_ILIM, M3A_IN, M3B_IN, M3_ENC_TIM, M3_ENC_A, M3_ENC_B, M3_DEFAULT_DIR);
+MotorClass Motor4(M4_PWM_PIN, M4_PWM_TIM, M4_PWM_TIM_CH, M4_ILIM, M4A_IN, M4B_IN, M4_ENC_TIM, M4_ENC_A, M4_ENC_B, M4_DEFAULT_DIR);
+MotorPidClass M2_PID(Motor2);
+
+
+/* FUNCTIONS */
+
 void error_loop() {
   while (1) {
     Serial.printf("in error loop");
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+    digitalWrite(RD_LED, !digitalRead(RD_LED));
     delay(100);
   }
 }
 
 void subscription_callback(const void *msgin) {
+  Motor1.SetMove(motor_vel);
+  Motor2.SetMove(motor_vel);
+  Motor3.SetMove(motor_vel);
+  Motor4.SetMove(motor_vel);
   const std_msgs__msg__String *msg = (const std_msgs__msg__String *)msgin;
   Serial.printf("[%s]: I heard: [%s]\r\n", NODE_NAME,
                 micro_ros_string_utilities_get_c_str(msg->data));
@@ -67,11 +86,15 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time) {
   RCLC_UNUSED(last_call_time);
   if (timer != NULL) {
     static int cnt = 0;
-    sprintf(buffer, "Hello World: %d, sys_clk: %d", cnt++, xTaskGetTickCount());
+    int cnt1 = Motor2.EncValUpdate();
+    // int cnt1 = Motor2.EncValUpdate()/(IMP_PER_RAD);
+    Motor2.VelocityUpdate();
+    //M2_PID.Setpoint = 0;
+    //M2_PID.Handler();
+    sprintf(buffer, "Hello World: %d, sys_clk: %d, M2_ENC: %d, M2_vel: %d", cnt++, xTaskGetTickCount(), cnt1, Motor2.GetVelocity());
+    //sprintf(buffer, "Hello World: %d, sys_clk: %d", cnt++, xTaskGetTickCount());
     Serial.printf("Publishing: %s\r\n", buffer);
-
     msg.data = micro_ros_string_utilities_set(msg.data, buffer);
-
     RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
   }
 }
@@ -80,35 +103,18 @@ static void rclc_spin_task(void *p);
 static void chatter_publisher_task(void *p);
 static void runtime_stats_task(void *p);
 
-EncMotors Motor1;
 
 void setup() {
   portBASE_TYPE s1, s2, s3;
-
   // Open serial communications and wait for port to open:
   Serial.setRx(PA10);
   Serial.setTx(PA9);
   Serial.begin(460800);
 
-  // ================== TESTING MOTORS ==========================
-  // int i = 100;
-
-  // Motor1.setPower(35);
-
-  // while (1) {
-  //   // Serial.printf("PWM = %d\r\n", i);
-  //   // i--;
-  //   // Motor1.setPower(i);
-  //   // Motor1.setPower(-30);
-  //   // delay(1000);
-  //   // Motor1.setPower(30);
-  //   // delay(1000);
-  // }
-
-  // =============================================================
-
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);
+  pinMode(GRN_LED, OUTPUT);
+  digitalWrite(GRN_LED, HIGH);
+  pinMode(EN_LOC_5V, OUTPUT);
+  digitalWrite(EN_LOC_5V, HIGH);
 
   client_ip.fromString(CLIENT_IP);
   agent_ip.fromString(AGENT_IP);
@@ -120,6 +126,8 @@ void setup() {
                                               AGENT_PORT);
 
   delay(2000);
+  pinMode(M2A_IN, OUTPUT_OPEN_DRAIN); // temporary after ethernet init
+
 
   allocator = rcl_get_default_allocator();
 
@@ -194,7 +202,7 @@ static void runtime_stats_task(void *p) {
 }
 
 void loop() {
-  digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+  digitalWrite(GRN_LED, !digitalRead(GRN_LED));
   delay(1000);
 }
 
