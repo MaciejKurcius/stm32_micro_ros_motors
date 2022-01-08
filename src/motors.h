@@ -13,6 +13,8 @@
 #define MOTORS_H
 
 #include <Arduino.h>
+#include <PID_v1.h>
+
 
 #define M1_ENC_TIM      TIM1
 #define M1_ENC_A        PE9
@@ -60,11 +62,11 @@
 
 #define ENC_MAX_CNT                 0xFFFF
 #define ENC_CNT_OFFSET              ENC_MAX_CNT/2
-#define PID_FREQ                    10   // in Hz
-#define PID_MIN_OUTPUT              -57
-#define PID_MAX_OUTPUT              57
+#define PID_FREQ                    1000   //max 1000Hz
+#define PID_MIN_OUTPUT              -100
+#define PID_MAX_OUTPUT              100
 #define PID_INTEGRAL_ERR_BUF_SIZE   100
-#define PID_DEFAULT_KP              1
+#define PID_DEFAULT_KP              2
 #define PID_DEFAULT_KI              0
 #define PID_DEFAULT_KD              0
 
@@ -92,6 +94,7 @@ class MotorClass {
         void EmgStop(void);
         int16_t VelocityUpdate(void);
         int16_t GetVelocity(void);
+        int8_t GetDefaultDir(void);
     private:
         HardwareTimer* Pwm_tim;
         HardwareTimer* Enc_tim;
@@ -111,27 +114,24 @@ class MotorClass {
 
 class MotorPidClass {
     public:
-        MotorPidClass(MotorClass Motor_);
+        MotorPidClass(MotorClass* Motor_);
         ~MotorPidClass();
-        void SetGain(uint8_t kp, uint8_t ki, uint8_t kd);
-        void Init(void);
-        void Refresh(void);
         void Handler(void);
-        int16_t Setpoint;           //velocity rad/s*1000
-        int16_t ActualSetpoint;      //velocity rad/s*1000
+        void SetSetpoint(double);
+        MotorClass *Motor;
     private:
-        MotorClass *Motor;        
-        int16_t ActualValue;
-        int16_t Error;
-        int16_t IntegralErrBuff[PID_INTEGRAL_ERR_BUF_SIZE];
-        uint8_t Kp;
-        uint8_t Ki;
-        uint8_t Kd;
-        int16_t MaxOutput;
-        int16_t MinOutput;
-        int16_t Output;
+        PID *MotorPID;
+        double Kp;
+        double Ki;
+        double Kd;
+        double Input;
+        double Output;
+        double Setpoint;           //velocity rad/s*1000
+        double OutputMin;
+        double OutputMax;
+        double InputMin;
+        double InputMax;
 };
-
 
 
 #endif /* MOTORS_H */

@@ -57,27 +57,35 @@ MotorClass Motor1(M1_PWM_PIN, M1_PWM_TIM, M1_PWM_TIM_CH, M1_ILIM, M1A_IN, M1B_IN
 MotorClass Motor2(M2_PWM_PIN, M2_PWM_TIM, M2_PWM_TIM_CH, M2_ILIM, M2A_IN, M2B_IN, M2_ENC_TIM, M2_ENC_A, M2_ENC_B, M2_DEFAULT_DIR);
 MotorClass Motor3(M3_PWM_PIN, M3_PWM_TIM, M3_PWM_TIM_CH, M3_ILIM, M3A_IN, M3B_IN, M3_ENC_TIM, M3_ENC_A, M3_ENC_B, M3_DEFAULT_DIR);
 MotorClass Motor4(M4_PWM_PIN, M4_PWM_TIM, M4_PWM_TIM_CH, M4_ILIM, M4A_IN, M4B_IN, M4_ENC_TIM, M4_ENC_A, M4_ENC_B, M4_DEFAULT_DIR);
-MotorPidClass M2_PID(Motor2);
+MotorPidClass M1_PID(&Motor1);
+MotorPidClass M2_PID(&Motor2);
+MotorPidClass M3_PID(&Motor3);
+MotorPidClass M4_PID(&Motor4);
 
+/* TASKS DECLARATION */
+
+static void rclc_spin_task(void *p);
+static void chatter_publisher_task(void *p);
+static void runtime_stats_task(void *p);
+static void m1_pid_handler_task(void *p);
+static void m2_pid_handler_task(void *p);
+static void m3_pid_handler_task(void *p);
+static void m4_pid_handler_task(void *p);
 
 /* FUNCTIONS */
 
 void error_loop() {
   while (1) {
-    Serial.printf("in error loop");
+    // Serial.printf("in error loop");
     digitalWrite(RD_LED, !digitalRead(RD_LED));
     delay(100);
   }
 }
 
 void subscription_callback(const void *msgin) {
-  Motor1.SetMove(motor_vel);
-  Motor2.SetMove(motor_vel);
-  Motor3.SetMove(motor_vel);
-  Motor4.SetMove(motor_vel);
   const std_msgs__msg__String *msg = (const std_msgs__msg__String *)msgin;
-  Serial.printf("[%s]: I heard: [%s]\r\n", NODE_NAME,
-                micro_ros_string_utilities_get_c_str(msg->data));
+  // Serial.printf("[%s]: I heard: [%s]\r\n", NODE_NAME,
+  //               micro_ros_string_utilities_get_c_str(msg->data));
 }
 
 char buffer[100];
@@ -87,34 +95,34 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time) {
   if (timer != NULL) {
     static int cnt = 0;
     int cnt1 = Motor2.EncValUpdate();
-    // int cnt1 = Motor2.EncValUpdate()/(IMP_PER_RAD);
-    Motor2.VelocityUpdate();
-    //M2_PID.Setpoint = 0;
-    //M2_PID.Handler();
-    sprintf(buffer, "Hello World: %d, sys_clk: %d, M2_ENC: %d, M2_vel: %d", cnt++, xTaskGetTickCount(), cnt1, Motor2.GetVelocity());
+    sprintf(buffer, "Hello World: %d, sys_clk: %d, M2_ENC: %d, M2_vel: %d", cnt++, xTaskGetTickCount(), cnt1, M2_PID.Motor->GetVelocity());
     //sprintf(buffer, "Hello World: %d, sys_clk: %d", cnt++, xTaskGetTickCount());
-    Serial.printf("Publishing: %s\r\n", buffer);
+    //Serial.printf("Publishing: %s\r\n", buffer);
     msg.data = micro_ros_string_utilities_set(msg.data, buffer);
     RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
   }
 }
 
-static void rclc_spin_task(void *p);
-static void chatter_publisher_task(void *p);
-static void runtime_stats_task(void *p);
-
+/*==================== SETUP ========================*/
 
 void setup() {
-  portBASE_TYPE s1, s2, s3;
+  portBASE_TYPE s1, s2, s3, s4, s5, s6;
   // Open serial communications and wait for port to open:
   Serial.setRx(PA10);
   Serial.setTx(PA9);
   Serial.begin(460800);
 
+  M1_PID.SetSetpoint(0);
+  M2_PID.SetSetpoint(0);
+  M3_PID.SetSetpoint(0);
+  M4_PID.SetSetpoint(0);
+
   pinMode(GRN_LED, OUTPUT);
   digitalWrite(GRN_LED, HIGH);
   pinMode(EN_LOC_5V, OUTPUT);
   digitalWrite(EN_LOC_5V, HIGH);
+  pinMode(RD_LED, OUTPUT);
+  digitalWrite(RD_LED, LOW);
 
   client_ip.fromString(CLIENT_IP);
   agent_ip.fromString(AGENT_IP);
@@ -167,8 +175,25 @@ void setup() {
                    configMINIMAL_STACK_SIZE + 2000, NULL, tskIDLE_PRIORITY + 1,
                    NULL);
 
+  s3 = xTaskCreate(m1_pid_handler_task, "m1_pid_handler_task",
+                            configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
+                            NULL);
+
+  s4 = xTaskCreate(m2_pid_handler_task, "m2_pid_handler_task",
+                            configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
+                            NULL);
+
+  s5 = xTaskCreate(m3_pid_handler_task, "m3_pid_handler_task",
+                            configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
+                            NULL);
+
+  s6 = xTaskCreate(m4_pid_handler_task, "m4_pid_handler_task",
+                            configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
+                            NULL);
+
   // check for creation errors
-  if (s1 != pdPASS || s2 != pdPASS) {
+  if (s1 != pdPASS || s2 != pdPASS || s3 != pdPASS ||
+      s4 != pdPASS || s5 != pdPASS || s6 != pdPASS) {
     Serial.println(F("Creation problem"));
     while (1)
       ;
@@ -177,6 +202,8 @@ void setup() {
   // start FreeRTOS
   vTaskStartScheduler();
 }
+
+/* RTOS TASKS */
 
 static void rclc_spin_task(void *p) {
   UNUSED(p);
@@ -201,12 +228,58 @@ static void runtime_stats_task(void *p) {
   }
 }
 
+static void m1_pid_handler_task(void *p){
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  while(1){
+    vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
+    //M1_PID.Handler();
+    //M2_PID.Handler();
+    //M3_PID.Handler();
+    //M4_PID.Handler();
+  }
+}
+
+static void m2_pid_handler_task(void *p){
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  while(1){
+    vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
+    //M1_PID.Handler();
+    //M2_PID.Handler();
+    //M3_PID.Handler();
+    //M4_PID.Handler();
+  }
+}
+
+static void m3_pid_handler_task(void *p){
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  while(1){
+    vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
+    //M1_PID.Handler();
+    //M2_PID.Handler();
+    M3_PID.Handler();
+    //M4_PID.Handler();
+  }
+}
+
+static void m4_pid_handler_task(void *p){
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  while(1){
+    vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
+    //M1_PID.Handler();
+    //M2_PID.Handler();
+    //M3_PID.Handler();
+    //M4_PID.Handler();
+  }
+}
+
+/*============== LOOP - IDDLE TASK ===============*/
+
 void loop() {
   digitalWrite(GRN_LED, !digitalRead(GRN_LED));
   delay(1000);
 }
 
-// =========== Runtime stats ====================
+/*=========== Runtime stats ====================*/
 
 HardwareTimer stats_tim(TIM5);  // TIM5 - 32 bit
 

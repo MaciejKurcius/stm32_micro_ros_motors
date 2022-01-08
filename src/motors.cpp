@@ -92,56 +92,53 @@ int16_t MotorClass::VelocityUpdate(void){
     static int64_t ActEncVal = this->EncValUpdate();
     PrevEncVal = ActEncVal;
     ActEncVal = this->EncValUpdate();
-    return this->Velocity = (ActEncVal - PrevEncVal)/(IMP_PER_RAD)*PID_FREQ;
+    this->Velocity = (ActEncVal-PrevEncVal)/(IMP_PER_RAD)*PID_FREQ;
+    return this->Velocity;
 }
 
 int16_t MotorClass::GetVelocity(void){
     return this->Velocity;
 }
 
-MotorPidClass::MotorPidClass(MotorClass Motor_){
-    this->Motor = new MotorClass(Motor_);
-    this->Kp = PID_DEFAULT_KP;
-    this->Ki = PID_DEFAULT_KI;
-    this->Kd = PID_DEFAULT_KD;
-    this->Error = 0;
-    this->ActualValue = 0;
-    this->MaxOutput = PID_MAX_OUTPUT;
-    this->MinOutput = PID_MIN_OUTPUT;
-    this->Setpoint = 0;
+int8_t MotorClass::GetDefaultDir(void){
+    return DefaultDir;
+}
+
+MotorPidClass::MotorPidClass(MotorClass* Motor_){
+    //Motor = new MotorClass(Motor_);
+    Motor = Motor_;
+    Kp = PID_DEFAULT_KP;
+    Ki = PID_DEFAULT_KI;
+    Kd = PID_DEFAULT_KD;
+    Input = 0;
+    Output = 0;
+    Setpoint = 0;
+    InputMin = MAX_SPEED*(-1);
+    InputMax = MAX_SPEED;
+    OutputMin = PID_MIN_OUTPUT;
+    OutputMax = PID_MAX_OUTPUT;
+    int8_t dir = 0;
+    if(!(this->Motor->GetDefaultDir()))
+        dir = REVERSE;
+    else
+        dir = DIRECT;
+    PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, P_ON_E, dir);
+    MotorPID = new PID(myPID);
+    MotorPID->SetOutputLimits(OutputMin, OutputMax);
+    MotorPID->SetSampleTime(1000/PID_FREQ);         
+    MotorPID->SetMode(AUTOMATIC);
 }
 
 MotorPidClass::~MotorPidClass(){
     ;
 }
 
-void MotorPidClass::Init(void){
-    ;
+void MotorPidClass::SetSetpoint(double Setpoint_){
+    Setpoint = Setpoint_;
 }
 
 void MotorPidClass::Handler(void){
-    if(Setpoint-ActualSetpoint > 0){
-        if(abs(Setpoint-ActualSetpoint)>MAX_ACCELERATION)
-            ActualSetpoint += MAX_ACCELERATION;
-        else
-            ActualSetpoint = Setpoint;
-    }
-    if(Setpoint-ActualSetpoint < 0){
-        if(abs(Setpoint-ActualSetpoint)>MAX_ACCELERATION)
-            ActualSetpoint -= MAX_DECELERATION;
-        else
-            ActualSetpoint = Setpoint;
-    }
-    ActualValue = this->Motor->VelocityUpdate();
-    Error = ActualSetpoint - ActualValue;
-    if(Error > MaxOutput){
-        Output = MaxOutput;
-    }
-    else if(Error < MinOutput){
-        Output = MinOutput;
-    }
-    else{
-        Output = Error*Kp;
-    }
-    this->Motor->SetMove(55);
+    this->Input = this->Motor->VelocityUpdate();
+    this->MotorPID->Compute();
+    this->Motor->SetMove(int16_t(Output));
 }
