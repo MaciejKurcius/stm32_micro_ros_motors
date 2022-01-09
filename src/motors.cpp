@@ -112,6 +112,7 @@ MotorPidClass::MotorPidClass(MotorClass* Motor_){
     Kd = PID_DEFAULT_KD;
     Input = 0;
     Output = 0;
+    ActualSetpoint = 0;
     Setpoint = 0;
     InputMin = MAX_SPEED*(-1);
     InputMax = MAX_SPEED;
@@ -122,7 +123,7 @@ MotorPidClass::MotorPidClass(MotorClass* Motor_){
         dir = REVERSE;
     else
         dir = DIRECT;
-    PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, P_ON_E, dir);
+    PID myPID(&Input, &Output, &PidSetpoint, Kp, Ki, Kd, P_ON_E, dir);
     MotorPID = new PID(myPID);
     MotorPID->SetOutputLimits(OutputMin, OutputMax);
     MotorPID->SetSampleTime(1000/PID_FREQ);         
@@ -138,7 +139,21 @@ void MotorPidClass::SetSetpoint(double Setpoint_){
 }
 
 void MotorPidClass::Handler(void){
-    this->Input = this->Motor->VelocityUpdate();
+    if(ActualSetpoint < Setpoint){
+        if((ActualSetpoint + MAX_ACCELERATION) > Setpoint)
+            ActualSetpoint = Setpoint;
+        else
+            ActualSetpoint += (MAX_ACCELERATION)/(PID_FREQ);
+    }
+    if(ActualSetpoint > Setpoint){
+        if((ActualSetpoint - MAX_DECELERATION < Setpoint))
+            ActualSetpoint = Setpoint;
+        else
+            ActualSetpoint -= (MAX_DECELERATION)/(PID_FREQ);
+    }
+    PidSetpoint = (ActualSetpoint*PID_MAX_OUTPUT)/MAX_SPEED;
+    this->Input = (this->Motor->VelocityUpdate()*PID_MAX_OUTPUT)/MAX_SPEED;
     this->MotorPID->Compute();
     this->Motor->SetMove(int16_t(Output));
+    Serial.printf("Actual setpoint: %d, Setpoint: %d, Output: %d, Input: %d \r\n", int16_t(ActualSetpoint), int16_t(Setpoint), int16_t(Output), int16_t(Input));
 }

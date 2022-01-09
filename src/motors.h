@@ -62,12 +62,12 @@
 
 #define ENC_MAX_CNT                 0xFFFF
 #define ENC_CNT_OFFSET              ENC_MAX_CNT/2
-#define PID_FREQ                    1000   //max 1000Hz
+#define PID_FREQ                    500  //max 1000Hz
 #define PID_MIN_OUTPUT              -100
 #define PID_MAX_OUTPUT              100
 #define PID_INTEGRAL_ERR_BUF_SIZE   100
-#define PID_DEFAULT_KP              2
-#define PID_DEFAULT_KI              0
+#define PID_DEFAULT_KP              3
+#define PID_DEFAULT_KI              5
 #define PID_DEFAULT_KD              0
 
 
@@ -77,8 +77,8 @@
 #define WHEEL_DIAM          100
 #define IMP_PER_RAD         ENC_RESOLUTION*GEARBOX_RATIO/6283.2
 #define MAX_SPEED           6283    // rad/s*1000
-#define MAX_ACCELERATION    10       // rad/s*1000
-#define MAX_DECELERATION    10
+#define MAX_ACCELERATION    500       // rad/s*1000
+#define MAX_DECELERATION    500
 
 class MotorClass {
     public:
@@ -127,6 +127,8 @@ class MotorPidClass {
         double Input;
         double Output;
         double Setpoint;           //velocity rad/s*1000
+        double ActualSetpoint;     //velocity rad/s*1000
+        double PidSetpoint;       //0-100%
         double OutputMin;
         double OutputMax;
         double InputMin;

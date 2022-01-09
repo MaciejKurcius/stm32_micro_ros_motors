@@ -71,7 +71,7 @@ static void m1_pid_handler_task(void *p);
 static void m2_pid_handler_task(void *p);
 static void m3_pid_handler_task(void *p);
 static void m4_pid_handler_task(void *p);
-
+static void setpoint_task(void *p);
 /* FUNCTIONS */
 
 void error_loop() {
@@ -106,7 +106,7 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time) {
 /*==================== SETUP ========================*/
 
 void setup() {
-  portBASE_TYPE s1, s2, s3, s4, s5, s6;
+  portBASE_TYPE s1, s2, s3, s4, s5, s6, s7;
   // Open serial communications and wait for port to open:
   Serial.setRx(PA10);
   Serial.setTx(PA9);
@@ -190,10 +190,14 @@ void setup() {
   s6 = xTaskCreate(m4_pid_handler_task, "m4_pid_handler_task",
                             configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
                             NULL);
+  s7 = xTaskCreate(setpoint_task, "setpoint_task",
+                            configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
+                            NULL);
 
   // check for creation errors
   if (s1 != pdPASS || s2 != pdPASS || s3 != pdPASS ||
-      s4 != pdPASS || s5 != pdPASS || s6 != pdPASS) {
+      s4 != pdPASS || s5 != pdPASS || s6 != pdPASS ||
+      s7 != pdPASS) {
     Serial.println(F("Creation problem"));
     while (1)
       ;
@@ -223,7 +227,7 @@ static void runtime_stats_task(void *p) {
   Serial.printf("runtime stats task started");
   while (1) {
     vTaskGetRunTimeStats(buf);
-    Serial.printf("\r\n%s\r\n-------------", buf);
+    //Serial.printf("\r\n%s\r\n-------------", buf);
     vTaskDelay(2000);
   }
 }
@@ -269,6 +273,16 @@ static void m4_pid_handler_task(void *p){
     //M2_PID.Handler();
     //M3_PID.Handler();
     //M4_PID.Handler();
+  }
+}
+
+static void setpoint_task(void *p){
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  while(1){
+    M3_PID.SetSetpoint(0);
+    vTaskDelayUntil(&xLastWakeTime, 10000);
+    M3_PID.SetSetpoint(0);
+    vTaskDelayUntil(&xLastWakeTime, 10000);
   }
 }
 
