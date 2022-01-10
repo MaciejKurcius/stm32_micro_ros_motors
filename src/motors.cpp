@@ -90,9 +90,20 @@ void MotorClass::SoftStop(void){
 int16_t MotorClass::VelocityUpdate(void){
     static int64_t PrevEncVal = this->EncValUpdate();
     static int64_t ActEncVal = this->EncValUpdate();
-    PrevEncVal = ActEncVal;
+    static uint32_t LastTime = xTaskGetTickCount();
+    static uint32_t NowTime = xTaskGetTickCount();
+    uint32_t TimeChange;
+    NowTime = xTaskGetTickCount();
+    TimeChange = (NowTime - LastTime);
     ActEncVal = this->EncValUpdate();
-    this->Velocity = (ActEncVal-PrevEncVal)/(IMP_PER_RAD)*PID_FREQ;
+    if(ActEncVal != PrevEncVal && ActEncVal != 0){
+        this->Velocity = int16_t((ActEncVal-PrevEncVal)*1000/(IMP_PER_RAD)/TimeChange);
+        //this->Velocity = int16_t((ActEncVal-PrevEncVal)*PID_FREQ/(IMP_PER_RAD));
+        Serial.printf("Actual Value: %d, Previous Value: %d, Velocity: %d, LastTime: %d, NowTime: %d, Time Change: %d \r\n", 
+                    int32_t(ActEncVal), int32_t(PrevEncVal), int32_t(this->Velocity), LastTime, NowTime, TimeChange);
+        PrevEncVal = ActEncVal;
+    }
+    LastTime = NowTime;
     return this->Velocity;
 }
 
@@ -152,7 +163,10 @@ void MotorPidClass::Handler(void){
             ActualSetpoint -= (MAX_DECELERATION)/(PID_FREQ);
     }
     PidSetpoint = (ActualSetpoint*PID_MAX_OUTPUT)/MAX_SPEED;
-    this->Input = (this->Motor->VelocityUpdate()*PID_MAX_OUTPUT)/MAX_SPEED;
+    int temp = this->Motor->VelocityUpdate();
+    //this->Input = (this->Motor->VelocityUpdate()*PID_MAX_OUTPUT)/MAX_SPEED;
+    this->Input = double((temp*PID_MAX_OUTPUT)/(MAX_SPEED));
+    //Serial.printf("Input: %d, Velocity: %d \r\n", int16_t(Input), int16_t(temp));
     this->MotorPID->Compute();
     this->Motor->SetMove(int16_t(Output));
     Serial.printf("Actual setpoint: %d, Setpoint: %d, Output: %d, Input: %d \r\n", int16_t(ActualSetpoint), int16_t(Setpoint), int16_t(Output), int16_t(Input));

@@ -72,6 +72,11 @@ static void m2_pid_handler_task(void *p);
 static void m3_pid_handler_task(void *p);
 static void m4_pid_handler_task(void *p);
 static void setpoint_task(void *p);
+
+/* SEMAPHORES */
+// xSemaphoreHandle xSemaphore = NULL;
+// xSemaphoreCreateBinary(xSemaphore);
+
 /* FUNCTIONS */
 
 void error_loop() {
@@ -236,7 +241,9 @@ static void m1_pid_handler_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(1){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
-    //M1_PID.Handler();
+    Serial.printf("M1 PID start.\r\n");
+    M1_PID.Handler();
+    Serial.printf("M1 PID stop.\r\n");
     //M2_PID.Handler();
     //M3_PID.Handler();
     //M4_PID.Handler();
@@ -260,7 +267,9 @@ static void m3_pid_handler_task(void *p){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
     //M1_PID.Handler();
     //M2_PID.Handler();
-    M3_PID.Handler();
+    Serial.printf("M3 PID start.\r\n");
+    //M3_PID.Handler();
+    Serial.printf("M3 PID stop.\r\n");
     //M4_PID.Handler();
   }
 }
@@ -278,11 +287,19 @@ static void m4_pid_handler_task(void *p){
 
 static void setpoint_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
+  int16_t Setpoint1 = 0;
+  int16_t Setpoint2 = 0;
   while(1){
-    M3_PID.SetSetpoint(0);
-    vTaskDelayUntil(&xLastWakeTime, 10000);
-    M3_PID.SetSetpoint(0);
-    vTaskDelayUntil(&xLastWakeTime, 10000);
+    M1_PID.SetSetpoint(Setpoint1);
+    M2_PID.SetSetpoint(Setpoint1);
+    M3_PID.SetSetpoint(Setpoint1);
+    M4_PID.SetSetpoint(Setpoint1);
+    vTaskDelayUntil(&xLastWakeTime, 8000);
+    M1_PID.SetSetpoint(Setpoint2);
+    M2_PID.SetSetpoint(Setpoint2);
+    M3_PID.SetSetpoint(Setpoint2);
+    M4_PID.SetSetpoint(Setpoint2);
+    vTaskDelayUntil(&xLastWakeTime, 8000);
   }
 }
 

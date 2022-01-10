@@ -14,7 +14,7 @@
 
 #include <Arduino.h>
 #include <PID_v1.h>
-
+#include <STM32FreeRTOS.h>
 
 #define M1_ENC_TIM      TIM1
 #define M1_ENC_A        PE9
@@ -63,11 +63,10 @@
 #define ENC_MAX_CNT                 0xFFFF
 #define ENC_CNT_OFFSET              ENC_MAX_CNT/2
 #define PID_FREQ                    500  //max 1000Hz
-#define PID_MIN_OUTPUT              -100
-#define PID_MAX_OUTPUT              100
-#define PID_INTEGRAL_ERR_BUF_SIZE   100
-#define PID_DEFAULT_KP              3
-#define PID_DEFAULT_KI              5
+#define PID_MIN_OUTPUT              -50
+#define PID_MAX_OUTPUT              50
+#define PID_DEFAULT_KP              2
+#define PID_DEFAULT_KI              1
 #define PID_DEFAULT_KD              0
 
 
@@ -76,9 +75,10 @@
 #define GEARBOX_RATIO       40
 #define WHEEL_DIAM          100
 #define IMP_PER_RAD         ENC_RESOLUTION*GEARBOX_RATIO/6283.2
-#define MAX_SPEED           6283    // rad/s*1000
-#define MAX_ACCELERATION    500       // rad/s*1000
-#define MAX_DECELERATION    500
+#define MAX_SPEED           8000    // rad/s*1000
+#define MIN_SPEED           300
+#define MAX_ACCELERATION    2000    // rad/s*1000
+#define MAX_DECELERATION    2000
 
 class MotorClass {
     public:
@@ -106,7 +106,7 @@ class MotorClass {
         uint32_t Ilim_pin;
         uint32_t PWM_pin;
         uint8_t PWM_tim_channel;
-        int16_t Velocity; //r ad/s
+        double Velocity; //r ad/s
         int8_t DefaultDir;
     protected:
     ;
