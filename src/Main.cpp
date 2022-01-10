@@ -93,14 +93,16 @@ void subscription_callback(const void *msgin) {
   //               micro_ros_string_utilities_get_c_str(msg->data));
 }
 
-char buffer[100];
+char buffer[200];
 
 void timer_callback(rcl_timer_t *timer, int64_t last_call_time) {
   RCLC_UNUSED(last_call_time);
   if (timer != NULL) {
     static int cnt = 0;
-    int cnt1 = Motor2.EncValUpdate();
-    sprintf(buffer, "Hello World: %d, sys_clk: %d, M2_ENC: %d, M2_vel: %d", cnt++, xTaskGetTickCount(), cnt1, M2_PID.Motor->GetVelocity());
+    int enc_mot1 = Motor1.EncValUpdate();
+    int enc_mot3 = Motor3.EncValUpdate();
+    sprintf(buffer, "M1 velocity: %d, M3 Velocity: %d, M3 Velocity: %d, M4 Velocity: %d", 
+            M1_PID.Motor->GetVelocity(), M2_PID.Motor->GetVelocity(), M3_PID.Motor->GetVelocity(), M4_PID.Motor->GetVelocity());
     //sprintf(buffer, "Hello World: %d, sys_clk: %d", cnt++, xTaskGetTickCount());
     //Serial.printf("Publishing: %s\r\n", buffer);
     msg.data = micro_ros_string_utilities_set(msg.data, buffer);
@@ -241,12 +243,7 @@ static void m1_pid_handler_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(1){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
-    Serial.printf("M1 PID start.\r\n");
     M1_PID.Handler();
-    Serial.printf("M1 PID stop.\r\n");
-    //M2_PID.Handler();
-    //M3_PID.Handler();
-    //M4_PID.Handler();
   }
 }
 
@@ -254,10 +251,7 @@ static void m2_pid_handler_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(1){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
-    //M1_PID.Handler();
-    //M2_PID.Handler();
-    //M3_PID.Handler();
-    //M4_PID.Handler();
+    M2_PID.Handler();
   }
 }
 
@@ -265,12 +259,7 @@ static void m3_pid_handler_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(1){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
-    //M1_PID.Handler();
-    //M2_PID.Handler();
-    Serial.printf("M3 PID start.\r\n");
-    //M3_PID.Handler();
-    Serial.printf("M3 PID stop.\r\n");
-    //M4_PID.Handler();
+    M3_PID.Handler();
   }
 }
 
@@ -278,28 +267,25 @@ static void m4_pid_handler_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(1){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
-    //M1_PID.Handler();
-    //M2_PID.Handler();
-    //M3_PID.Handler();
-    //M4_PID.Handler();
+    M4_PID.Handler();
   }
 }
 
 static void setpoint_task(void *p){
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-  int16_t Setpoint1 = 0;
-  int16_t Setpoint2 = 0;
+  int16_t Setpoint1 = 3500;
+  int16_t Setpoint2 = -3500;
+  int16_t DelayTime = 6000;
   while(1){
-    M1_PID.SetSetpoint(Setpoint1);
+    M1_PID.SetSetpoint(-Setpoint1);
     M2_PID.SetSetpoint(Setpoint1);
-    M3_PID.SetSetpoint(Setpoint1);
+    M3_PID.SetSetpoint(-Setpoint1);
     M4_PID.SetSetpoint(Setpoint1);
-    vTaskDelayUntil(&xLastWakeTime, 8000);
-    M1_PID.SetSetpoint(Setpoint2);
+    vTaskDelay(DelayTime);
+    M1_PID.SetSetpoint(-Setpoint2);
     M2_PID.SetSetpoint(Setpoint2);
-    M3_PID.SetSetpoint(Setpoint2);
+    M3_PID.SetSetpoint(-Setpoint2);
     M4_PID.SetSetpoint(Setpoint2);
-    vTaskDelayUntil(&xLastWakeTime, 8000);
+    vTaskDelay(DelayTime);
   }
 }
 

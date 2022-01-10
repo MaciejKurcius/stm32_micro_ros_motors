@@ -25,7 +25,7 @@
 #define M1A_IN          PE12
 #define M1B_IN          PE13
 #define M1_ILIM         PE10
-#define M1_DEFAULT_DIR  -1         // 1 (CW) or -1 (CCW)
+#define M1_DEFAULT_DIR  1         // 1 (CW) or -1 (CCW)
 
 #define M2_ENC_TIM      TIM2
 #define M2_ENC_A        PA15
@@ -36,7 +36,7 @@
 #define M2A_IN          PG11
 #define M2B_IN          PG12
 #define M2_ILIM         PG15
-#define M2_DEFAULT_DIR  1          // 1 (CW) or -1 (CCW)
+#define M2_DEFAULT_DIR  -1          // 1 (CW) or -1 (CCW)
 
 #define M3_ENC_TIM      TIM3
 #define M3_ENC_A        PC6
@@ -47,7 +47,7 @@
 #define M3A_IN          PG5
 #define M3B_IN          PG6
 #define M3_ILIM         PG7
-#define M3_DEFAULT_DIR  -1         // 1 (CW) or -1 (CCW)
+#define M3_DEFAULT_DIR  1         // 1 (CW) or -1 (CCW)
 
 #define M4_ENC_TIM      TIM4
 #define M4_ENC_A        PD12
@@ -58,13 +58,13 @@
 #define M4A_IN          PD10
 #define M4B_IN          PD11
 #define M4_ILIM         PD14
-#define M4_DEFAULT_DIR  1          // 1 (CW) or -1 (CCW)
+#define M4_DEFAULT_DIR  -1          // 1 (CW) or -1 (CCW)
 
 #define ENC_MAX_CNT                 0xFFFF
 #define ENC_CNT_OFFSET              ENC_MAX_CNT/2
 #define PID_FREQ                    500  //max 1000Hz
-#define PID_MIN_OUTPUT              -50
-#define PID_MAX_OUTPUT              50
+#define PID_MIN_OUTPUT              -65
+#define PID_MAX_OUTPUT              65
 #define PID_DEFAULT_KP              2
 #define PID_DEFAULT_KI              1
 #define PID_DEFAULT_KD              0
@@ -92,7 +92,7 @@ class MotorClass {
         void SetMove(int16_t vel);
         void SoftStop(void);
         void EmgStop(void);
-        int16_t VelocityUpdate(void);
+        int16_t VelocityUpdate(uint16_t TimeChange);
         int16_t GetVelocity(void);
         int8_t GetDefaultDir(void);
     private:
@@ -106,8 +106,10 @@ class MotorClass {
         uint32_t Ilim_pin;
         uint32_t PWM_pin;
         uint8_t PWM_tim_channel;
-        double Velocity; //r ad/s
+        int16_t Velocity; //r ad/s
         int8_t DefaultDir;
+        int64_t PrevEncVal = ENC_CNT_OFFSET;
+        int64_t ActualEncVal = ENC_CNT_OFFSET;
     protected:
     ;
 };
@@ -119,20 +121,23 @@ class MotorPidClass {
         void Handler(void);
         void SetSetpoint(double);
         MotorClass *Motor;
-    private:
+    
         PID *MotorPID;
-        double Kp;
-        double Ki;
-        double Kd;
-        double Input;
-        double Output;
-        double Setpoint;           //velocity rad/s*1000
-        double ActualSetpoint;     //velocity rad/s*1000
-        double PidSetpoint;       //0-100%
-        double OutputMin;
-        double OutputMax;
-        double InputMin;
-        double InputMax;
+        double Kp = PID_DEFAULT_KP;
+        double Ki = PID_DEFAULT_KI;
+        double Kd = PID_DEFAULT_KD;
+        double Input = 0;
+        double Output = 0;
+        double Setpoint = 0;           //velocity rad/s*1000
+        double ActualSetpoint = 0;     //velocity rad/s*1000
+        double PidSetpoint = 0;        //0-100%
+        double OutputMin = PID_MIN_OUTPUT;
+        double OutputMax = PID_MAX_OUTPUT;
+        double InputMin = (MAX_SPEED)*(-1);
+        double InputMax = MAX_SPEED;
+        uint32_t PrevTime = xTaskGetTickCount();
+        uint32_t ActualTime = xTaskGetTickCount();
+        private:
 };
 
 
