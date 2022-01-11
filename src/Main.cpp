@@ -11,12 +11,15 @@
 #include <std_msgs/msg/string.h>
 #include "motors.h"
 #include "hardware_cfg.h"
+#include <SPI.h>
+//IMU
+// #include <Wire.h>
+// #include <Adafruit_Sensor.h>
+// #include <Adafruit_BNO055.h>
+//PIXEL
+#include "pixel.h"
 
 /* DEFINES */
-
-//temp for tests
-#define motor_vel 50
-
 #define CLIENT_IP "192.168.1.177"
 #define AGENT_IP "192.168.1.176"
 #define AGENT_PORT 8888
@@ -53,6 +56,8 @@ IPAddress client_ip;
 IPAddress agent_ip;
 byte mac[] = {0x02, 0x47, 0x00, 0x00, 0x00, 0x01};
 
+
+//MOTORS
 MotorClass Motor1(M1_PWM_PIN, M1_PWM_TIM, M1_PWM_TIM_CH, M1_ILIM, M1A_IN, M1B_IN, M1_ENC_TIM, M1_ENC_A, M1_ENC_B, M1_DEFAULT_DIR);
 MotorClass Motor2(M2_PWM_PIN, M2_PWM_TIM, M2_PWM_TIM_CH, M2_ILIM, M2A_IN, M2B_IN, M2_ENC_TIM, M2_ENC_A, M2_ENC_B, M2_DEFAULT_DIR);
 MotorClass Motor3(M3_PWM_PIN, M3_PWM_TIM, M3_PWM_TIM_CH, M3_ILIM, M3A_IN, M3B_IN, M3_ENC_TIM, M3_ENC_A, M3_ENC_B, M3_DEFAULT_DIR);
@@ -61,6 +66,21 @@ MotorPidClass M1_PID(&Motor1);
 MotorPidClass M2_PID(&Motor2);
 MotorPidClass M3_PID(&Motor3);
 MotorPidClass M4_PID(&Motor4);
+
+//IMU
+
+// double xPos = 0, yPos = 0, headingVel = 0;
+// uint16_t BNO055_SAMPLERATE_DELAY_MS = 10; //how often to read data from the board
+// uint16_t PRINT_DELAY_MS = 500; // how often to print the data
+// uint16_t printCount = 0; //counter to avoid printing every 10MS sample
+// double ACCEL_VEL_TRANSITION =  (double)(BNO055_SAMPLERATE_DELAY_MS) / 1000.0;
+// double ACCEL_POS_TRANSITION = 0.5 * ACCEL_VEL_TRANSITION * ACCEL_VEL_TRANSITION;
+// Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
+
+//PIXEL LED
+SPIClass PixelSpi(PIXEL_MOSI, PB14, PIXEL_SCK);
+PixelLedClass PixelStrip(PIXEL_LENGTH, &PixelSpi);
+
 
 /* TASKS DECLARATION */
 
@@ -72,10 +92,7 @@ static void m2_pid_handler_task(void *p);
 static void m3_pid_handler_task(void *p);
 static void m4_pid_handler_task(void *p);
 static void setpoint_task(void *p);
-
-/* SEMAPHORES */
-// xSemaphoreHandle xSemaphore = NULL;
-// xSemaphoreCreateBinary(xSemaphore);
+static void pixel_led_task(void *p);
 
 /* FUNCTIONS */
 
@@ -113,17 +130,19 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time) {
 /*==================== SETUP ========================*/
 
 void setup() {
-  portBASE_TYPE s1, s2, s3, s4, s5, s6, s7;
+  portBASE_TYPE s1, s2, s3, s4, s5, s6, s7, s8;
   // Open serial communications and wait for port to open:
   Serial.setRx(PA10);
   Serial.setTx(PA9);
   Serial.begin(460800);
-
+  //Motors init
   M1_PID.SetSetpoint(0);
   M2_PID.SetSetpoint(0);
   M3_PID.SetSetpoint(0);
   M4_PID.SetSetpoint(0);
-
+  //Pixel Led
+  PixelStrip.SetStripColour(0xFF, 0x00, 0x00, 0x0F);
+  //Hardware init
   pinMode(GRN_LED, OUTPUT);
   digitalWrite(GRN_LED, HIGH);
   pinMode(EN_LOC_5V, OUTPUT);
@@ -142,6 +161,7 @@ void setup() {
 
   delay(2000);
   pinMode(M2A_IN, OUTPUT_OPEN_DRAIN); // temporary after ethernet init
+  PixelStrip.Init();
 
 
   allocator = rcl_get_default_allocator();
@@ -200,16 +220,18 @@ void setup() {
   s7 = xTaskCreate(setpoint_task, "setpoint_task",
                             configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
                             NULL);
+  s8 = xTaskCreate(pixel_led_task, "pixel_led_task",
+                          configMINIMAL_STACK_SIZE + 1000, NULL, tskIDLE_PRIORITY + 1,
+                          NULL);
 
   // check for creation errors
   if (s1 != pdPASS || s2 != pdPASS || s3 != pdPASS ||
       s4 != pdPASS || s5 != pdPASS || s6 != pdPASS ||
-      s7 != pdPASS) {
+      s7 != pdPASS || s8 != pdPASS) {
     Serial.println(F("Creation problem"));
     while (1)
       ;
   }
-
   // start FreeRTOS
   vTaskStartScheduler();
 }
@@ -272,8 +294,8 @@ static void m4_pid_handler_task(void *p){
 }
 
 static void setpoint_task(void *p){
-  int16_t Setpoint1 = 3500;
-  int16_t Setpoint2 = -3500;
+  int16_t Setpoint1 = 0;
+  int16_t Setpoint2 = -0;
   int16_t DelayTime = 6000;
   while(1){
     M1_PID.SetSetpoint(-Setpoint1);
@@ -286,6 +308,16 @@ static void setpoint_task(void *p){
     M3_PID.SetSetpoint(-Setpoint2);
     M4_PID.SetSetpoint(Setpoint2);
     vTaskDelay(DelayTime);
+  }
+}
+
+static void pixel_led_task(void *p){
+  uint16_t DelayTime = 3000;
+  while(1){
+    vTaskDelay(DelayTime);
+    PixelStrip.SetStripColour(0x0F, 0x00, 0x00, 0x0F);
+    vTaskDelay(DelayTime);
+    PixelStrip.SetStripColour(0x00, 0x00, 0x0F, 0x0F);
   }
 }
 

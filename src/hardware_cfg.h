@@ -36,6 +36,7 @@
 #define PIXEL_SPI           SPI2  
 #define PIXEL_MOSI          PB15
 #define PIXEL_SCK           PB10
+#define PIXEL_LENGTH        18
 
 /* EXTERNAL PERIPHERALS */
 

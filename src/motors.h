@@ -62,9 +62,9 @@
 
 #define ENC_MAX_CNT                 0xFFFF
 #define ENC_CNT_OFFSET              ENC_MAX_CNT/2
-#define PID_FREQ                    500  //max 1000Hz
-#define PID_MIN_OUTPUT              -65
-#define PID_MAX_OUTPUT              65
+#define PID_FREQ                    100  //max 1000Hz
+#define PID_MIN_OUTPUT              -100
+#define PID_MAX_OUTPUT              100
 #define PID_DEFAULT_KP              2
 #define PID_DEFAULT_KI              1
 #define PID_DEFAULT_KD              0
@@ -121,7 +121,6 @@ class MotorPidClass {
         void Handler(void);
         void SetSetpoint(double);
         MotorClass *Motor;
-    
         PID *MotorPID;
         double Kp = PID_DEFAULT_KP;
         double Ki = PID_DEFAULT_KI;
