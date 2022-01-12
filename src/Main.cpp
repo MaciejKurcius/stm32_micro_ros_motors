@@ -8,10 +8,15 @@
 #include <rcl/rcl.h>
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
-#include <std_msgs/msg/string.h>
 #include "motors.h"
 #include "hardware_cfg.h"
 #include <SPI.h>
+// ROS MSGS TYPES
+#include <std_msgs/msg/string.h>
+#include <std_msgs/msg/int64.h>
+#include <nav_msgs/msg/odometry.h>
+#include <geometry_msgs/msg/twist.h>
+
 //IMU
 // #include <Wire.h>
 // #include <Adafruit_Sensor.h>
@@ -31,6 +36,7 @@
     rcl_ret_t temp_rc = fn;        \
     if ((temp_rc != RCL_RET_OK)) { \
       error_loop();                \
+      Serial.printf("o");          \
     }                              \
   }
 #define RCSOFTCHECK(fn)            \
@@ -43,15 +49,28 @@
 
 /* VARIABLES */
 
+//ROS PUBLISHERS
 rcl_publisher_t publisher;
+rcl_publisher_t odom_publisher;
+rcl_publisher_t imu_publisher;
+//ROS SUBSCRIPTIONS
 rcl_subscription_t subscriber;
-std_msgs__msg__String msg;
+rcl_subscription_t cmd_vel_subscriber;
+//ROS MESSAGES
+nav_msgs__msg__Odometry odom_msg;
+geometry_msgs__msg__Twist* twist_msg;
+geometry_msgs__msg__Twist twist_msg_temp;
+std_msgs__msg__String msgs;
+uint8_t ros_msgs_cnt = 0;
+
+//ROS
 rclc_executor_t executor;
 rclc_support_t support;
 rcl_allocator_t allocator;
 rcl_node_t node;
 rcl_timer_t timer;
 
+//ETHERNET
 IPAddress client_ip;
 IPAddress agent_ip;
 byte mac[] = {0x02, 0x47, 0x00, 0x00, 0x00, 0x01};
@@ -105,25 +124,34 @@ void error_loop() {
 }
 
 void subscription_callback(const void *msgin) {
-  const std_msgs__msg__String *msg = (const std_msgs__msg__String *)msgin;
+  const std_msgs__msg__String *msgs = (const std_msgs__msg__String *)msgin;
   // Serial.printf("[%s]: I heard: [%s]\r\n", NODE_NAME,
-  //               micro_ros_string_utilities_get_c_str(msg->data));
+  //               micro_ros_string_utilities_get_c_str(msgs->data));
+}
+
+void cmd_vel_callback(const void *msgin){
+  twist_msg = (geometry_msgs__msg__Twist *)msgin;
+  twist_msg_temp = *twist_msg;
+  //Serial.println(uint32_t(twist_msg->linear.x));
 }
 
 char buffer[200];
 
 void timer_callback(rcl_timer_t *timer, int64_t last_call_time) {
-  RCLC_UNUSED(last_call_time);
+  RCLC_UNUSED(last_call_time); 
+  //static std_msgs__msg__Int64 msg_int64;
   if (timer != NULL) {
     static int cnt = 0;
     int enc_mot1 = Motor1.EncValUpdate();
     int enc_mot3 = Motor3.EncValUpdate();
-    sprintf(buffer, "M1 velocity: %d, M3 Velocity: %d, M3 Velocity: %d, M4 Velocity: %d", 
+    sprintf(buffer, "M1 velocity: %d, M2 Velocity: %d, M3 Velocity: %d, M4 Velocity: %d", 
             M1_PID.Motor->GetVelocity(), M2_PID.Motor->GetVelocity(), M3_PID.Motor->GetVelocity(), M4_PID.Motor->GetVelocity());
     //sprintf(buffer, "Hello World: %d, sys_clk: %d", cnt++, xTaskGetTickCount());
     //Serial.printf("Publishing: %s\r\n", buffer);
-    msg.data = micro_ros_string_utilities_set(msg.data, buffer);
-    RCSOFTCHECK(rcl_publish(&publisher, &msg, NULL));
+    msgs.data = micro_ros_string_utilities_set(msgs.data, buffer);
+    RCSOFTCHECK(rcl_publish(&publisher, &msgs, NULL));
+    //msg_int64.data = 1;
+    // RCSOFTCHECK(rcl_publish(&odom_publisher, &odom_msg, NULL));
   }
 }
 
@@ -153,7 +181,7 @@ void setup() {
   client_ip.fromString(CLIENT_IP);
   agent_ip.fromString(AGENT_IP);
 
-  Serial.printf("Connecting to agent: ");
+  Serial.printf("Connecting to agent: \r\n");
   Serial.println(agent_ip);
 
   set_microros_native_ethernet_udp_transports(mac, client_ip, agent_ip,
@@ -176,20 +204,46 @@ void setup() {
   RCCHECK(rclc_publisher_init_default(
       &publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
       "chatter"));
+  ros_msgs_cnt++;
+  Serial.printf("Created 'chatter' publisher.\r\n");
+
+  RCCHECK(rclc_publisher_init_default(
+      &odom_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry),
+      "odom/wheels"));
+  ros_msgs_cnt++;
+  Serial.printf("Created 'odom/wheels' publisher.\r\n");
+
+  RCCHECK(rclc_publisher_init_default(
+      &imu_publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
+      "imu"));
+  ros_msgs_cnt++;    
+  Serial.printf("Created 'imu' publisher.\r\n");
 
   // create subscriber
   RCCHECK(rclc_subscription_init_default(
-      &subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
-      "chatter"));
+      &subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry),
+      "odom/wheels"));
+  ros_msgs_cnt++;
+  Serial.printf("Created 'odom/wheels' subscriber\r\n");
+
+  RCCHECK(rclc_subscription_init_default(
+      &cmd_vel_subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
+      "cmd_vel"));
+  ros_msgs_cnt++;
+  Serial.printf("Created 'cmd_vel' subscriber\r\n");
+      
 
   // create timer,
   RCCHECK(rclc_timer_init_default(&timer, &support, RCL_MS_TO_NS(50),
                                   timer_callback));
+  Serial.printf("Created timer\r\n");
 
   // create executor
-  RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
-  RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg,
+  RCCHECK(rclc_executor_init(&executor, &support.context, ros_msgs_cnt, &allocator));
+  RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &msgs,
                                          &subscription_callback, ON_NEW_DATA));
+  RCCHECK(rclc_executor_add_subscription(&executor, &cmd_vel_subscriber, &msgs,
+                                        &cmd_vel_callback, ON_NEW_DATA));                                    
   RCCHECK(rclc_executor_add_timer(&executor, &timer));
 
   // create spin task
@@ -253,7 +307,7 @@ static void rclc_spin_task(void *p) {
 
 static void runtime_stats_task(void *p) {
   char buf[2000];
-  Serial.printf("runtime stats task started");
+  Serial.printf("runtime stats task started\r\n");
   while (1) {
     vTaskGetRunTimeStats(buf);
     //Serial.printf("\r\n%s\r\n-------------", buf);
@@ -265,7 +319,9 @@ static void m1_pid_handler_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(1){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
+    M1_PID.SetSetpoint(double(twist_msg_temp.linear.x));
     M1_PID.Handler();
+    odom_msg.twist.twist.angular.z = M1_PID.Motor->GetVelocity();
   }
 }
 
@@ -273,6 +329,7 @@ static void m2_pid_handler_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(1){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
+    M2_PID.SetSetpoint(double(twist_msg_temp.linear.x));
     M2_PID.Handler();
   }
 }
@@ -281,6 +338,7 @@ static void m3_pid_handler_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(1){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
+    M3_PID.SetSetpoint(double(twist_msg_temp.linear.x));
     M3_PID.Handler();
   }
 }
@@ -289,35 +347,54 @@ static void m4_pid_handler_task(void *p){
   TickType_t xLastWakeTime = xTaskGetTickCount();
   while(1){
     vTaskDelayUntil(&xLastWakeTime, 1000/PID_FREQ);
+    M4_PID.SetSetpoint(double(twist_msg_temp.linear.x));
     M4_PID.Handler();
   }
 }
 
 static void setpoint_task(void *p){
-  int16_t Setpoint1 = 0;
-  int16_t Setpoint2 = -0;
+  int16_t Setpoint1 = 6000;
+  int16_t Setpoint2 = -6000;
   int16_t DelayTime = 6000;
   while(1){
-    M1_PID.SetSetpoint(-Setpoint1);
-    M2_PID.SetSetpoint(Setpoint1);
-    M3_PID.SetSetpoint(-Setpoint1);
-    M4_PID.SetSetpoint(Setpoint1);
-    vTaskDelay(DelayTime);
-    M1_PID.SetSetpoint(-Setpoint2);
-    M2_PID.SetSetpoint(Setpoint2);
-    M3_PID.SetSetpoint(-Setpoint2);
-    M4_PID.SetSetpoint(Setpoint2);
+    // M1_PID.SetSetpoint(-Setpoint1);
+    // M2_PID.SetSetpoint(Setpoint1);
+    // M3_PID.SetSetpoint(-Setpoint1);
+    // M4_PID.SetSetpoint(Setpoint1);
+    // vTaskDelay(DelayTime);
+    // M1_PID.SetSetpoint(-Setpoint2);
+    // M2_PID.SetSetpoint(Setpoint2);
+    // M3_PID.SetSetpoint(-Setpoint2);
+    // M4_PID.SetSetpoint(Setpoint2);
     vTaskDelay(DelayTime);
   }
 }
 
 static void pixel_led_task(void *p){
   uint16_t DelayTime = 3000;
+  static uint8_t i = 0;
+  static uint8_t led = 0;
+  static bool flag = false;
   while(1){
-    vTaskDelay(DelayTime);
-    PixelStrip.SetStripColour(0x0F, 0x00, 0x00, 0x0F);
-    vTaskDelay(DelayTime);
-    PixelStrip.SetStripColour(0x00, 0x00, 0x0F, 0x0F);
+    led = i;
+    if(i == 13)
+      led = 17;
+    if(i == 14)
+      led = 16;
+    if(i == 16)
+      led = 14;
+    if(i == 17)
+      led = 13;
+    if(flag)
+      PixelStrip.SetNthLed(led, 0xFF, 0x00, 0x00);
+    if(!flag)
+      PixelStrip.SetNthLed(led, 0x00, 0x00, 0xFF);
+    i++;
+    if(i >= PixelStrip.GetStripLength()){
+      i = 0;
+      flag = !flag;
+    }
+    vTaskDelay(40);
   }
 }
 

@@ -11,6 +11,8 @@
 
 #include "pixel.h"
 
+std::map<uint8_t, uint8_t> PixelStripMap;
+
 PixelLedClass::PixelLedClass(){
     ;
 }
@@ -35,15 +37,13 @@ void PixelLedClass::Init(){
 }
 
 void PixelLedClass::SendStartFrame(){
-    for(int i = 0; i < 4; i++){
+    for(int i = 0; i < 4; i++)
         this->PixelSpi->transfer(CS_PIN_CONTROLLED_BY_USER, 0x00);
-    }
 }
 
 void PixelLedClass::SendStopFrame(){
-    for(int i = 0; i < 4; i++){
+    for(int i = 0; i < 4; i++)
         this->PixelSpi->transfer(CS_PIN_CONTROLLED_BY_USER, 0xFF);
-    }
 }
 
 void PixelLedClass::SendBuffersData(){
