@@ -1,7 +1,6 @@
 #ifndef HARDWARE_CFG
 #define HARDWARE_CFG
 
-#include <map>
 
 // Define all inputs/outputs etc.
 
@@ -39,6 +38,7 @@
 #define PIXEL_MOSI          PB15
 #define PIXEL_SCK           PB10
 #define PIXEL_LENGTH        18
+#define PIXEL_SPI_SPEED     4000000
 
 
 

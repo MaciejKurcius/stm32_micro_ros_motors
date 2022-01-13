@@ -11,7 +11,6 @@
 
 #include "pixel.h"
 
-std::map<uint8_t, uint8_t> PixelStripMap;
 
 PixelLedClass::PixelLedClass(){
     ;
@@ -24,8 +23,9 @@ PixelLedClass::PixelLedClass(uint8_t StripLength_, SPIClass* Spi_){
     Green = new uint8_t[StripLength_];
     Blue = new uint8_t[StripLength_];
     Brightness = new uint8_t [StripLength_];
-    SpiSettings = new SPISettings(40000, LSBFIRST, SPI_MODE3, SPI_TRANSMITONLY);
+    SpiSettings = new SPISettings(PIXEL_SPI_SPEED, LSBFIRST, SPI_MODE3, SPI_TRANSMITONLY);
     PixelSpi->beginTransaction(CS_PIN_CONTROLLED_BY_USER, *SpiSettings);
+    PixelStripMapInit();
 }
 
 PixelLedClass::~PixelLedClass(){
@@ -87,23 +87,116 @@ void PixelLedClass::SetStripColour(uint8_t Red_, uint8_t Green_, uint8_t Blue_, 
     this->SendBuffersData();
 }
 
-uint8_t PixelLedClass::SetNthLed(uint8_t Led_, uint8_t Red_, uint8_t Green_, uint8_t Blue_){
+bool PixelLedClass::SetNthLed(uint8_t Led_, uint8_t Red_, uint8_t Green_, uint8_t Blue_){
     if(Led_ >= StripLength)
-        return 1;
-    Red[Led_] = Red_;
-    Green[Led_] = Green_;
-    Blue[Led_] = Blue_;
+        return true;
+    Red[PixelStripMap[Led_]] = Red_;
+    Green[PixelStripMap[Led_]] = Green_;
+    Blue[PixelStripMap[Led_]] = Blue_;
     this->SendBuffersData();
-    return 0;
+    return false;
 }
 
-uint8_t PixelLedClass::SetNthLed(uint8_t Led_, uint8_t Red_, uint8_t Green_, uint8_t Blue_, uint8_t Brightness_){
+bool PixelLedClass::SetNthLed(uint8_t Led_, uint8_t Red_, uint8_t Green_, uint8_t Blue_, uint8_t Brightness_){
     if(Led_ >= StripLength)
-        return 1;
-    Red[Led_] = Red_;
-    Green[Led_] = Green_;
-    Blue[Led_] = Blue_;
-    Brightness[Led_] = Brightness_;
+        return true;
+    Red[PixelStripMap[Led_]] = Red_;
+    Green[PixelStripMap[Led_]] = Green_;
+    Blue[PixelStripMap[Led_]] = Blue_;
+    Brightness[PixelStripMap[Led_]] = Brightness_;
     this->SendBuffersData();
-    return 0;
+    return false;
+}
+
+void PixelLedClass::SetNthBrightness(uint8_t Led_, uint8_t Brightness_){
+    Brightness[PixelStripMap[Led_]] = Brightness_;
+    this->SendBuffersData();
+}
+
+void PixelLedClass::PixelStripMapInit(void){
+    for(int i = 0; i < StripLength; i++)
+        PixelStripMap[i] = i;
+}
+
+bool PixelLedClass::PixelStripMapRemap(uint8_t MapIndex_, uint8_t LedIndex_){
+    if(MapIndex_ >= StripLength || LedIndex_ >= StripLength)
+        return true;
+    PixelStripMap[MapIndex_] = LedIndex_;
+    return false;
+}
+
+bool PixelLedClass::PixelStripMapSwap(uint8_t LedIndex1_, uint8_t LedIndex2_){
+    if(LedIndex1_ >= StripLength || LedIndex2_ >= StripLength)
+        return true;
+    PixelStripMap[LedIndex1_] = LedIndex2_;
+    PixelStripMap[LedIndex2_] = LedIndex1_;
+    return false;
+}
+
+PixelStripSubsetClass::PixelStripSubsetClass(){
+    ;
+}
+
+PixelStripSubsetClass::PixelStripSubsetClass(PixelLedClass *PixelStrip_){
+    PixelStrip = PixelStrip_;
+}
+
+PixelStripSubsetClass::PixelStripSubsetClass(PixelLedClass *PixelStrip_, uint8_t FirstLed_, uint8_t LastLed_){
+    PixelStrip = PixelStrip_;
+    if(FirstLed_ >= PixelStrip->GetStripLength() || LastLed_ >= PixelStrip->GetStripLength()){
+        ErrorFlag = true;
+        return;
+    }
+    Length = abs(LastLed_ - FirstLed_)+1;
+    for(int i = 0; i < Length; i++){
+        if(FirstLed_ <= LastLed_)
+            SubsetStripMap[i] = FirstLed_ + i;
+        else
+            SubsetStripMap[i] = FirstLed_ - i;
+    }
+}
+
+PixelStripSubsetClass::~PixelStripSubsetClass(){
+    ;
+}
+
+bool PixelStripSubsetClass::SetSubset(uint8_t FirstLed_, uint8_t LastLed_){
+    return false;
+}
+
+bool PixelStripSubsetClass::CheckErr(void){
+    return ErrorFlag;
+}
+
+
+void PixelStripSubsetClass::StripMapFlip(void){
+    std::map<uint8_t, uint8_t> temp_map;
+    for(int i = 0; i < Length; i++)
+        temp_map[i] = SubsetStripMap[(Length-1) - i];
+}
+
+
+void PixelStripSubsetClass::SetColour(uint8_t Red_, uint8_t Green_, uint8_t Blue_){
+    uint8_t temp=0;
+    for(int i=0; i < Length; i++){
+        temp = SubsetStripMap[i];
+        this->PixelStrip->SetNthLed(SubsetStripMap[i], Red_, Green_, Blue_);
+    }
+}
+void PixelStripSubsetClass::SetColour(uint8_t Red_, uint8_t Green_, uint8_t Blue_, uint8_t Brightness_){
+    for(int i=0; i < Length; i++){
+        this->PixelStrip->SetNthLed(SubsetStripMap[i], Red_, Green_, Blue_, Brightness_);
+    }
+}
+void PixelStripSubsetClass::SetBrightness(uint8_t Brightness_){
+    ;
+}
+void PixelStripSubsetClass::SetNthLedColour(uint8_t Red_, uint8_t Green_, uint8_t Blue_){
+    ;
+}
+void PixelStripSubsetClass::SetNthLedColour(uint8_t Red_, uint8_t Green_, uint8_t Blue_, uint8_t Brightness_){
+
+}
+void PixelStripSubsetClass::SetNthLedBrightness(uint8_t Brightness_){
+    ;
 }

@@ -99,8 +99,10 @@ MotorPidClass M4_PID(&Motor4);
 //PIXEL LED
 SPIClass PixelSpi(PIXEL_MOSI, PB14, PIXEL_SCK);
 PixelLedClass PixelStrip(PIXEL_LENGTH, &PixelSpi);
-
-
+PixelStripSubsetClass RL_Light(&PixelStrip, 0, 4);
+PixelStripSubsetClass FL_Light(&PixelStrip, 5, 8);
+PixelStripSubsetClass FR_Light(&PixelStrip, 9, 12);
+PixelStripSubsetClass RR_Light(&PixelStrip, 13, 17);
 /* TASKS DECLARATION */
 
 static void rclc_spin_task(void *p);
@@ -170,6 +172,8 @@ void setup() {
   M4_PID.SetSetpoint(0);
   //Pixel Led
   PixelStrip.SetStripColour(0xFF, 0x00, 0x00, 0x0F);
+  PixelStrip.PixelStripMapSwap(13,17);
+  PixelStrip.PixelStripMapSwap(14,16);
   //Hardware init
   pinMode(GRN_LED, OUTPUT);
   digitalWrite(GRN_LED, HIGH);
@@ -371,30 +375,74 @@ static void setpoint_task(void *p){
 }
 
 static void pixel_led_task(void *p){
-  uint16_t DelayTime = 3000;
+  uint16_t DelayTime = 250;
   static uint8_t i = 0;
   static uint8_t led = 0;
   static bool flag = false;
   while(1){
-    led = i;
-    if(i == 13)
-      led = 17;
-    if(i == 14)
-      led = 16;
-    if(i == 16)
-      led = 14;
-    if(i == 17)
-      led = 13;
-    if(flag)
-      PixelStrip.SetNthLed(led, 0xFF, 0x00, 0x00);
-    if(!flag)
-      PixelStrip.SetNthLed(led, 0x00, 0x00, 0xFF);
-    i++;
-    if(i >= PixelStrip.GetStripLength()){
-      i = 0;
-      flag = !flag;
-    }
-    vTaskDelay(40);
+    //Animation 1
+    // led = i;
+    // if(flag)
+    //   PixelStrip.SetNthLed(led, 0xFF, 0x00, 0x00);
+    // if(!flag)
+    //   PixelStrip.SetNthLed(led, 0x00, 0x00, 0xFF);
+    // i++;
+    // if(i >= PixelStrip.GetStripLength()){
+    //   i = 0;
+    //   flag = !flag;
+    // }
+    //Animation 2
+    // vTaskDelay(500);
+    // RL_Light.SetColour(0xFF, 0x00, 0x00);
+    // FL_Light.SetColour(0xFF, 0x00, 0x00);
+    // FR_Light.SetColour(0x00, 0x00, 0xFF);
+    // RR_Light.SetColour(0x00, 0x00, 0xFF);
+    // vTaskDelay(500);
+    // RL_Light.SetColour(0x00, 0x00, 0xFF);
+    // FL_Light.SetColour(0x00, 0x00, 0xFF);
+    // FR_Light.SetColour(0xFF, 0x00, 0x00);
+    // RR_Light.SetColour(0xFF, 0x00, 0x00);
+    //Animation 3
+    vTaskDelay(DelayTime);
+    RL_Light.SetColour(0xFF, 0x00, 0x00);
+    FL_Light.SetColour(0xFF, 0x00, 0x00);
+    FR_Light.SetColour(0x00, 0x00, 0x00);
+    RR_Light.SetColour(0x00, 0x00, 0x00);
+    vTaskDelay(DelayTime);
+    RL_Light.SetColour(0x00, 0x00, 0xFF);
+    FL_Light.SetColour(0x00, 0x00, 0xFF);
+    FR_Light.SetColour(0x00, 0x00, 0x00);
+    RR_Light.SetColour(0x00, 0x00, 0x00);
+    vTaskDelay(DelayTime);
+    RL_Light.SetColour(0xFF, 0x00, 0x00);
+    FL_Light.SetColour(0xFF, 0x00, 0x00);
+    FR_Light.SetColour(0x00, 0x00, 0x00);
+    RR_Light.SetColour(0x00, 0x00, 0x00);
+    vTaskDelay(DelayTime);
+    RL_Light.SetColour(0x00, 0x00, 0xFF);
+    FL_Light.SetColour(0x00, 0x00, 0xFF);
+    FR_Light.SetColour(0x00, 0x00, 0x00);
+    RR_Light.SetColour(0x00, 0x00, 0x00);
+    vTaskDelay(DelayTime);
+    FR_Light.SetColour(0xFF, 0x00, 0x00);
+    RR_Light.SetColour(0xFF, 0x00, 0x00);
+    RL_Light.SetColour(0x00, 0x00, 0x00);
+    FL_Light.SetColour(0x00, 0x00, 0x00);
+    vTaskDelay(DelayTime);
+    FR_Light.SetColour(0x00, 0x00, 0xFF);
+    RR_Light.SetColour(0x00, 0x00, 0xFF);
+    RL_Light.SetColour(0x00, 0x00, 0x00);
+    FL_Light.SetColour(0x00, 0x00, 0x00);
+    vTaskDelay(DelayTime);
+    FR_Light.SetColour(0xFF, 0x00, 0x00);
+    RR_Light.SetColour(0xFF, 0x00, 0x00);
+    RL_Light.SetColour(0x00, 0x00, 0x00);
+    FL_Light.SetColour(0x00, 0x00, 0x00);
+    vTaskDelay(DelayTime);
+    FR_Light.SetColour(0x00, 0x00, 0xFF);
+    RR_Light.SetColour(0x00, 0x00, 0xFF);
+    RL_Light.SetColour(0x00, 0x00, 0x00);
+    FL_Light.SetColour(0x00, 0x00, 0x00);
   }
 }
 
