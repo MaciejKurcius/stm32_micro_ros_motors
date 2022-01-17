@@ -376,33 +376,7 @@ static void setpoint_task(void *p){
 
 static void pixel_led_task(void *p){
   uint16_t DelayTime = 250;
-  static uint8_t i = 0;
-  static uint8_t led = 0;
-  static bool flag = false;
   while(1){
-    //Animation 1
-    // led = i;
-    // if(flag)
-    //   PixelStrip.SetNthLed(led, 0xFF, 0x00, 0x00);
-    // if(!flag)
-    //   PixelStrip.SetNthLed(led, 0x00, 0x00, 0xFF);
-    // i++;
-    // if(i >= PixelStrip.GetStripLength()){
-    //   i = 0;
-    //   flag = !flag;
-    // }
-    //Animation 2
-    // vTaskDelay(500);
-    // RL_Light.SetColour(0xFF, 0x00, 0x00);
-    // FL_Light.SetColour(0xFF, 0x00, 0x00);
-    // FR_Light.SetColour(0x00, 0x00, 0xFF);
-    // RR_Light.SetColour(0x00, 0x00, 0xFF);
-    // vTaskDelay(500);
-    // RL_Light.SetColour(0x00, 0x00, 0xFF);
-    // FL_Light.SetColour(0x00, 0x00, 0xFF);
-    // FR_Light.SetColour(0xFF, 0x00, 0x00);
-    // RR_Light.SetColour(0xFF, 0x00, 0x00);
-    //Animation 3
     vTaskDelay(DelayTime);
     RL_Light.SetColour(0xFF, 0x00, 0x00);
     FL_Light.SetColour(0xFF, 0x00, 0x00);
